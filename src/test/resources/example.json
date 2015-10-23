@@ -1,0 +1,15 @@
+{
+    "package" : "com.github.mortimersmith.jason",
+    "name" : "Examples",
+    "types" : {
+        "This" : {
+            "one" : { "type" : "boolean" },
+            "two" : { "type" : "That" },
+            "three" : { "type" : "list", "of" : "integer" },
+            "four" : { "type" : "map", "of" : "That" }
+        },
+        "That" : {
+            "one" : { "type" : "integer" }
+        }
+    }
+}
