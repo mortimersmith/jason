@@ -1,6 +1,7 @@
 package com.github.mortimersmith.jason.msgpack;
 
 import com.github.mortimersmith.jason.JasonLib;
+import static com.github.mortimersmith.jason.Util.ifPresentE;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -8,6 +9,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.msgpack.packer.Packer;
 import org.msgpack.unpacker.Unpacker;
 
@@ -58,6 +60,15 @@ public class MessagePack implements JasonLib.Serializer<Unpacker, Packer, Unpack
     }
 
     @Override
+    public <T> Optional<T> readOptional(Unpacker context, String field, JasonLib.Serializer.Reader<Unpacker, T> of) throws IOException {
+        Boolean present = booleanReader().read(context);
+        return present != null && present
+            ? Optional.of(of.read(context))
+            : Optional.empty()
+            ;
+    }
+
+    @Override
     public <T> List<T> readList(Unpacker context, String field, JasonLib.Serializer.Reader<Unpacker, T> of) throws IOException {
         int len = context.readInt();
         List<T> l = new LinkedList<>();
@@ -101,6 +112,13 @@ public class MessagePack implements JasonLib.Serializer<Unpacker, Packer, Unpack
     @Override
     public <T> Packer writePrimitive(Packer context, String field, JasonLib.Serializer.Writer<Packer, T> as, T value) throws IOException {
         as.write(context, value);
+        return context;
+    }
+
+    @Override
+    public <T> Packer writeOptional(Packer context, String field, JasonLib.Serializer.Writer<Packer, T> of, Optional<T> value) throws IOException {
+        ifPresentE(value, (t) -> { booleanWriter().write(context, true); of.write(context, t); })
+            .otherwise(() -> booleanWriter().write(context, false));
         return context;
     }
 

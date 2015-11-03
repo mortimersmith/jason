@@ -1,16 +1,9 @@
 package com.github.mortimersmith.jason;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import org.msgpack.packer.Packer;
-import org.msgpack.unpacker.Unpacker;
+import java.util.Optional;
 
 public class JasonLib
 {
@@ -47,6 +40,7 @@ public class JasonLib
         Reader<PrimitiveRead, String> stringReader() throws IOException;
 
         <T> T readPrimitive(ObjectRead context, String field, Reader<PrimitiveRead, T> as) throws IOException;
+        <T> Optional<T> readOptional(ObjectRead context, String field, Reader<PrimitiveRead, T> of) throws IOException;
         <T> List<T> readList(ObjectRead context, String field, Reader<PrimitiveRead, T> of) throws IOException;
         <T> Map<String, T> readMap(ObjectRead context, String field, Reader<PrimitiveRead, T> of) throws IOException;
 
@@ -57,6 +51,7 @@ public class JasonLib
         <T extends Serializable> Writer<PrimitiveWrite, T> serializableWriter() throws IOException;
 
         <T> ObjectWrite writePrimitive(ObjectWrite context, String field, Writer<PrimitiveWrite, T> as, T value) throws IOException;
+        <T> ObjectWrite writeOptional(ObjectWrite context, String field, Writer<PrimitiveWrite, T> of, Optional<T> value) throws IOException;
         <T> ObjectWrite writeList(ObjectWrite context, String field, Writer<PrimitiveWrite, T> of, List<T> value) throws IOException;
         <T> ObjectWrite writeMap(ObjectWrite context, String field, Writer<PrimitiveWrite, T> of, Map<String, T> value) throws IOException;
     }

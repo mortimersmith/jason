@@ -6,7 +6,8 @@
             "one" : { "type" : "boolean" },
             "two" : { "type" : "That" },
             "three" : { "type" : "list", "of" : "integer" },
-            "four" : { "type" : "map", "of" : "That" }
+            "four" : { "type" : "map", "of" : "That" },
+            "five" : { "type" : "optional", "of" : "long" }
         },
         "That" : {
             "one" : { "type" : "integer" }

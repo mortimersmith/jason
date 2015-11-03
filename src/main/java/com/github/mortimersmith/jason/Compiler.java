@@ -22,6 +22,7 @@ public class Compiler
         , "Integer"
         , "Long"
         , "String"
+        , "Optional"
         , "List"
         , "Map"
         );
@@ -72,7 +73,7 @@ public class Compiler
     {
         String type = json.get("type").getAsString();
         m.type = Symbol.of(type);
-        if ("list".equals(type) || "map".equals(type)) {
+        if ("optional".equals(type) || "list".equals(type) || "map".equals(type)) {
             String of = json.get("of").getAsString();
             m.template = Symbol.of(of);
         }
@@ -254,7 +255,8 @@ public class Compiler
 
         static void typeClassification(Member m, StringBuilder out) throws Error
         {
-            if (m.type.isList()) out.append("List");
+            if (m.type.isOptional()) out.append("Optional");
+            else if (m.type.isList()) out.append("List");
             else if (m.type.isMap()) out.append("Map");
             else out.append("Primitive");
         }
@@ -310,6 +312,8 @@ public class Compiler
                 s.name = "Long";
             } else if ("string".equals(type)) {
                 s.name = "String";
+            } else if ("optional".equals(type)) {
+                s.name = "Optional";
             } else if ("list".equals(type)) {
                 s.name = "List";
             } else if ("map".equals(type)) {
@@ -325,9 +329,10 @@ public class Compiler
         public boolean isInteger() { return "Integer".equals(name); }
         public boolean isLong() { return "Long".equals(name); }
         public boolean isString() { return "String".equals(name); }
+        public boolean isOptional() { return "Optional".equals(name); }
         public boolean isList() { return "List".equals(name); }
         public boolean isMap() { return "Map".equals(name); }
-        public boolean templatized() { return "List".equals(name) || "Map".equals(name); }
+        public boolean templatized() { return "Optional".equals(name) || "List".equals(name) || "Map".equals(name); }
 
         public String toString() { return name; }
 

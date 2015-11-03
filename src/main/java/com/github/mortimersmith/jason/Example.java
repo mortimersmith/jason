@@ -5,34 +5,40 @@ import com.github.mortimersmith.jason.JasonLib.Serializer;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 public class Example
 {
     static class Foo implements Serializable
     {
-        private final boolean _primitive;
+        private final Boolean _primitive;
+        private final Optional<Long> _optional;
         private final List<Integer> _list;
         private final Map<String, Bar> _map;
 
-        private Foo(boolean primitive, List<Integer> list, Map<String, Bar> map) {
+        private Foo(Boolean primitive, Optional<Long> optional, List<Integer> list, Map<String, Bar> map) {
             _primitive = primitive;
+            _optional = optional;
             _list = list;
             _map = map;
         }
 
-        public static Foo of(boolean primitive, List<Integer> list, Map<String, Bar> map) {
-            return new Foo(primitive, list, map);
+        public static Foo of(Boolean primitive, Optional<Long> optional, List<Integer> list, Map<String, Bar> map) {
+            return new Foo(primitive, optional, list, map);
         }
 
-        public boolean primitive() { return _primitive; }
-        public Foo primitive(boolean primitive) { return Foo.of(primitive, _list, _map); }
+        public Boolean primitive() { return _primitive; }
+        public Foo primitive(Boolean primitive) { return Foo.of(primitive, _optional, _list, _map); }
+
+        public Optional<Long> optional() { return _optional; }
+        public Foo optional(Optional<Long> optional) { return Foo.of(_primitive, optional, _list, _map); }
 
         public List<Integer> list() { return _list; }
-        public Foo list(List<Integer> list) { return Foo.of(_primitive, list, _map); }
+        public Foo list(List<Integer> list) { return Foo.of(_primitive, _optional, list, _map); }
 
         public Map<String, Bar> map() { return _map; }
-        public Foo map(Map<String, Bar> map) { return Foo.of(_primitive, _list, map); }
+        public Foo map(Map<String, Bar> map) { return Foo.of(_primitive, _optional, _list, map); }
 
         public static
             <ObjectRead, ObjectWrite, PrimitiveRead, PrimitiveWrite> Foo
@@ -51,6 +57,7 @@ public class Example
                 ObjectRead child = s.childContext(context);
                 return Foo.of
                     ( s.readPrimitive(child, "primitive", s.booleanReader())
+                    , s.readOptional(child, "optional", s.longReader())
                     , s.readList(child, "list", s.integerReader())
                     , s.readMap(child, "map", Bar.serializableReader(s))
                     );
@@ -63,6 +70,7 @@ public class Example
             throws IOException
         {
             s.writePrimitive(context, "primitive", s.booleanWriter(), _primitive);
+            s.writeOptional(context, "optional", s.longWriter(), _optional);
             s.writeList(context, "list", s.integerWriter(), _list);
             s.writeMap(context, "map", s.<Bar>serializableWriter(), _map);
             return context;

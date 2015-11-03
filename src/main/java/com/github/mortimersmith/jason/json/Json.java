@@ -1,6 +1,7 @@
 package com.github.mortimersmith.jason.json;
 
 import com.github.mortimersmith.jason.JasonLib;
+import static com.github.mortimersmith.jason.Util.ifPresentE;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -10,6 +11,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class Json implements JasonLib.Serializer<JsonObject, JsonObject, JsonElement, JsonElement>
 {
@@ -56,6 +58,12 @@ public class Json implements JasonLib.Serializer<JsonObject, JsonObject, JsonEle
     }
 
     @Override
+    public <T> Optional<T> readOptional(JsonObject context, String field, Reader<JsonElement, T> of) throws IOException {
+        JsonElement e = context.get(field);
+        return e == null ? Optional.empty() : Optional.of(of.read(context.get(field)));
+    }
+
+    @Override
     public <T> List<T> readList(JsonObject context, String field, JasonLib.Serializer.Reader<JsonElement, T> of) throws IOException {
         JsonArray a = context.getAsJsonArray(field);
         List<T> l = new LinkedList<>();
@@ -99,6 +107,12 @@ public class Json implements JasonLib.Serializer<JsonObject, JsonObject, JsonEle
     @Override
     public <T> JsonObject writePrimitive(JsonObject context, String field, JasonLib.Serializer.Writer<JsonElement, T> as, T value) throws IOException {
         context.add(field, as.write(null, value));
+        return context;
+    }
+
+    @Override
+    public <T> JsonObject writeOptional(JsonObject context, String field, Writer<JsonElement, T> of, Optional<T> value) throws IOException {
+        ifPresentE(value, (t) -> context.add(field, of.write(null, t)));
         return context;
     }
 
