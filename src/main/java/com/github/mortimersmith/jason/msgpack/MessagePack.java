@@ -1,7 +1,7 @@
 package com.github.mortimersmith.jason.msgpack;
 
 import com.github.mortimersmith.jason.JasonLib;
-import static com.github.mortimersmith.jason.Util.ifPresentE;
+import static com.github.mortimersmith.utils.Utils.ifPresentE;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;

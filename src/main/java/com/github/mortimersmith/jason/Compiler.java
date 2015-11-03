@@ -104,6 +104,7 @@ public class Compiler
             out.append("import java.io.IOException;\n");
             out.append("import java.util.List;\n");
             out.append("import java.util.Map;\n");
+            out.append("import java.util.Optional;\n");
             out.append("public interface ").append(instances.name).append(" {\n");
             for (Instance i : instances.map.values())
                 instance(i, out);

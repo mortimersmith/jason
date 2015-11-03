@@ -1,7 +1,7 @@
 package com.github.mortimersmith.jason.json;
 
 import com.github.mortimersmith.jason.JasonLib;
-import static com.github.mortimersmith.jason.Util.ifPresentE;
+import static com.github.mortimersmith.utils.Utils.ifPresentE;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
