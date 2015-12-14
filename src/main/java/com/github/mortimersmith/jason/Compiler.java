@@ -7,6 +7,7 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -21,11 +22,19 @@ public class Compiler
         ( "Boolean"
         , "Integer"
         , "Long"
+        , "Float"
+        , "Double"
         , "String"
         , "Optional"
         , "List"
         , "Map"
         );
+
+    public static void main(String[] args) throws Error
+    {
+        if (args.length != 2) throw Error.because("invalid arguments");
+        compile(Paths.get(args[0]), Paths.get(args[1]));
+    }
 
     public static void compile(Path specs, Path target) throws Error
     {
@@ -267,6 +276,8 @@ public class Compiler
             if (s.isBoolean()) out.append("s.booleanReader()");
             else if (s.isInteger()) out.append("s.integerReader()");
             else if (s.isLong()) out.append("s.longReader()");
+            else if (s.isFloat()) out.append("s.floatReader()");
+            else if (s.isDouble()) out.append("s.doubleReader()");
             else if (s.isString()) out.append("s.stringReader()");
             else out.append(s.name).append(".serializableReader(s)");
         }
@@ -276,6 +287,8 @@ public class Compiler
             if (s.isBoolean()) out.append("s.booleanWriter()");
             else if (s.isInteger()) out.append("s.integerWriter()");
             else if (s.isLong()) out.append("s.longWriter()");
+            else if (s.isFloat()) out.append("s.floatWriter()");
+            else if (s.isDouble()) out.append("s.doubleWriter()");
             else if (s.isString()) out.append("s.stringWriter()");
             else out.append("s.serializableWriter()");
         }
@@ -311,6 +324,10 @@ public class Compiler
                 s.name = "Integer";
             } else if ("long".equals(type)) {
                 s.name = "Long";
+            } else if ("float".equals(type)) {
+                s.name = "Float";
+            } else if ("double".equals(type)) {
+                s.name = "Double";
             } else if ("string".equals(type)) {
                 s.name = "String";
             } else if ("optional".equals(type)) {
@@ -329,6 +346,8 @@ public class Compiler
         public boolean isBoolean() { return "Boolean".equals(name); }
         public boolean isInteger() { return "Integer".equals(name); }
         public boolean isLong() { return "Long".equals(name); }
+        public boolean isFloat() { return "Float".equals(name); }
+        public boolean isDouble() { return "Double".equals(name); }
         public boolean isString() { return "String".equals(name); }
         public boolean isOptional() { return "Optional".equals(name); }
         public boolean isList() { return "List".equals(name); }

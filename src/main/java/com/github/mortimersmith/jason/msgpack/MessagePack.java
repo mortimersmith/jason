@@ -50,6 +50,16 @@ public class MessagePack implements JasonLib.Serializer<Unpacker, Packer, Unpack
     }
 
     @Override
+    public JasonLib.Serializer.Reader<Unpacker, Float> floatReader() throws IOException {
+        return (u) -> u.readFloat();
+    }
+
+    @Override
+    public JasonLib.Serializer.Reader<Unpacker, Double> doubleReader() throws IOException {
+        return (u) -> u.readDouble();
+    }
+
+    @Override
     public JasonLib.Serializer.Reader<Unpacker, String> stringReader() throws IOException {
         return (u) -> u.readString();
     }
@@ -96,6 +106,16 @@ public class MessagePack implements JasonLib.Serializer<Unpacker, Packer, Unpack
 
     @Override
     public JasonLib.Serializer.Writer<Packer, Long> longWriter() throws IOException {
+        return (p, value) -> p.write(value);
+    }
+
+    @Override
+    public JasonLib.Serializer.Writer<Packer, Float> floatWriter() throws IOException {
+        return (p, value) -> p.write(value);
+    }
+
+    @Override
+    public JasonLib.Serializer.Writer<Packer, Double> doubleWriter() throws IOException {
         return (p, value) -> p.write(value);
     }
 

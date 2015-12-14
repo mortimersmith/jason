@@ -48,6 +48,16 @@ public class Json implements JasonLib.Serializer<JsonObject, JsonObject, JsonEle
     }
 
     @Override
+    public JasonLib.Serializer.Reader<JsonElement, Float> floatReader() throws IOException {
+        return (json) -> json.getAsFloat();
+    }
+
+    @Override
+    public JasonLib.Serializer.Reader<JsonElement, Double> doubleReader() throws IOException {
+        return (json) -> json.getAsDouble();
+    }
+
+    @Override
     public JasonLib.Serializer.Reader<JsonElement, String> stringReader() throws IOException {
         return (json) -> json.getAsString();
     }
@@ -91,6 +101,16 @@ public class Json implements JasonLib.Serializer<JsonObject, JsonObject, JsonEle
 
     @Override
     public JasonLib.Serializer.Writer<JsonElement, Long> longWriter() throws IOException {
+        return (json, value) -> new JsonPrimitive(value);
+    }
+
+    @Override
+    public JasonLib.Serializer.Writer<JsonElement, Float> floatWriter() throws IOException {
+        return (json, value) -> new JsonPrimitive(value);
+    }
+
+    @Override
+    public JasonLib.Serializer.Writer<JsonElement, Double> doubleWriter() throws IOException {
         return (json, value) -> new JsonPrimitive(value);
     }
 

@@ -37,6 +37,8 @@ public class JasonLib
         Reader<PrimitiveRead, Boolean> booleanReader() throws IOException;
         Reader<PrimitiveRead, Integer> integerReader() throws IOException;
         Reader<PrimitiveRead, Long> longReader() throws IOException;
+        Reader<PrimitiveRead, Float> floatReader() throws IOException;
+        Reader<PrimitiveRead, Double> doubleReader() throws IOException;
         Reader<PrimitiveRead, String> stringReader() throws IOException;
 
         <T> T readPrimitive(ObjectRead context, String field, Reader<PrimitiveRead, T> as) throws IOException;
@@ -47,6 +49,8 @@ public class JasonLib
         Writer<PrimitiveWrite, Boolean> booleanWriter() throws IOException;
         Writer<PrimitiveWrite, Integer> integerWriter() throws IOException;
         Writer<PrimitiveWrite, Long> longWriter() throws IOException;
+        Writer<PrimitiveWrite, Float> floatWriter() throws IOException;
+        Writer<PrimitiveWrite, Double> doubleWriter() throws IOException;
         Writer<PrimitiveWrite, String> stringWriter() throws IOException;
         <T extends Serializable> Writer<PrimitiveWrite, T> serializableWriter() throws IOException;
 
