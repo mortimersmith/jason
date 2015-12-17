@@ -14,6 +14,11 @@ public class JasonLib
             throws IOException;
     }
 
+    public interface IBuilder<T>
+    {
+        T build();
+    }
+
     public interface Serializable
     {
         <ObjectRead, ObjectWrite, PrimitiveRead, PrimitiveWrite>

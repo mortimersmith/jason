@@ -108,6 +108,7 @@ public class Compiler
         static void instances(Instances instances, StringBuilder out) throws Error
         {
             out.append("package ").append(instances.pkg).append(";\n");
+            out.append("import com.github.mortimersmith.jason.JasonLib.IBuilder;\n");
             out.append("import com.github.mortimersmith.jason.JasonLib.Serializer;\n");
             out.append("import com.github.mortimersmith.jason.JasonLib.Serializable;\n");
             out.append("import java.io.IOException;\n");
@@ -123,20 +124,65 @@ public class Compiler
         static void instance(Instance instance, StringBuilder out) throws Error
         {
             out.append("public static class ").append(instance.name).append(" implements Serializable {\n");
-            fields(instance, out);
+            fields(instance, true, out);
             constructor(instance, out);
             factoryMethod(instance, out);
             getters(instance, out);
             setters(instance, out);
             serializableReader(instance, out);
             serializableWriter(instance, out);
+            builder(instance, out);
+            toBuilder(instance, out);
             out.append("}\n");
         }
 
-        static void fields(Instance instance, StringBuilder out) throws Error
+        static void builder(Instance instance, StringBuilder out) throws Error
+        {
+            out.append("public static class Builder implements IBuilder<");
+            out.append(instance.name);
+            out.append("> {\n");
+            fields(instance, false, out);
+            getters(instance, out);
+            builderSetters(instance, out);
+            out.append("public ").append(instance.name).append(" build() { return ").append(instance.name).append(".of(");
+            boolean first = true;
+            for (Member m : instance.members) {
+                if (first) first = false; else out.append(", ");
+                out.append("_").append(m.name);
+            }
+            out.append("); }\n");
+            out.append("}\n");
+        }
+
+        static void toBuilder(Instance instance, StringBuilder out) throws Error
+        {
+            out.append("public Builder builder() { return new Builder()");
+            for (Member m : instance.members)
+                out.append(".").append(m.name).append("(_").append(m.name).append(")");
+            out.append("; }\n");
+        }
+
+        static void builderSetters(Instance instance, StringBuilder out) throws Error
         {
             for (Member m : instance.members) {
-                out.append("private final ");
+                out.append("public Builder ");
+                out.append(m.name);
+                out.append("(");
+                m.emitType(out);
+                out.append(" ");
+                out.append(m.name);
+                out.append(") { _");
+                out.append(m.name);
+                out.append(" = ");
+                out.append(m.name);
+                out.append("; return this; }\n");
+            }
+        }
+
+        static void fields(Instance instance, boolean final_, StringBuilder out) throws Error
+        {
+            for (Member m : instance.members) {
+                out.append("private ").append(final_ ? "final " : " ");
                 m.emitType(out);
                 out.append(" _").append(m.name).append(";\n");
             }

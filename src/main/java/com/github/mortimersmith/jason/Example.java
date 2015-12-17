@@ -1,5 +1,6 @@
 package com.github.mortimersmith.jason;
 
+import com.github.mortimersmith.jason.JasonLib.IBuilder;
 import com.github.mortimersmith.jason.JasonLib.Serializable;
 import com.github.mortimersmith.jason.JasonLib.Serializer;
 import java.io.IOException;
@@ -27,6 +28,30 @@ public class Example
         public static Foo of(Boolean primitive, Optional<Long> optional, List<Integer> list, Map<String, Bar> map) {
             return new Foo(primitive, optional, list, map);
         }
+
+        public static class Builder implements IBuilder<Foo>
+        {
+            private Boolean _primitive;
+            private Optional<Long> _optional;
+            private List<Integer> _list;
+            private Map<String, Bar> _map;
+
+            public Boolean primitive() { return _primitive; }
+            public Builder primitive(Boolean primitive) { _primitive = primitive; return this; }
+
+            public Optional<Long> optional() { return _optional; }
+            public Builder optional(Optional<Long> optional) { _optional = optional; return this; }
+
+            public List<Integer> list() { return _list; }
+            public Builder list(List<Integer> list) { _list = list; return this; }
+
+            public Map<String, Bar> map() { return _map; }
+            public Builder map(Map<String, Bar> map) { _map = map; return this; }
+
+            public Foo build() { return Foo.of(_primitive, _optional, _list, _map); }
+        }
+
+        public Builder builder() { return new Builder().primitive(_primitive).optional(_optional).list(_list).map(_map); }
 
         public Boolean primitive() { return _primitive; }
         public Foo primitive(Boolean primitive) { return Foo.of(primitive, _optional, _list, _map); }
