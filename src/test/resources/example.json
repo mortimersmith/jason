@@ -11,6 +11,7 @@
         },
         "That" : {
             "one" : { "type" : "integer" }
-        }
+        },
+        "Empty" : {}
     }
 }

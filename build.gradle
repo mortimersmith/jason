@@ -4,7 +4,7 @@ apply plugin: "groovy"
 apply plugin: "maven"
 
 group = "com.github.mortimersmith"
-version = "0.0.3"
+version = "0.0.4"
 
 sourceCompatibility = "1.8"
 

@@ -276,10 +276,10 @@ public class Compiler
             out.append("ObjectRead child = s.childContext(context);\n");
             out.append("return ");
             out.append(instance.name);
-            out.append(".of\n");
+            out.append(".of\n(");
             boolean first = true;
             for (Member m : instance.members) {
-                if (first) { first = false; out.append("( "); } else out.append(", ");
+                if (first) { first = false; out.append(" "); } else out.append(", ");
                 out.append("s.read");
                 typeClassification(m, out);
                 out.append("(child, \"");
