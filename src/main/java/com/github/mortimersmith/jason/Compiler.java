@@ -433,7 +433,9 @@ public class Compiler
         public void emitType(StringBuilder out) throws Error
         {
             out.append(type);
-            if (type.isList()) {
+            if (type.isOptional()) {
+                out.append("<").append(template).append(">");
+            } else if (type.isList()) {
                 out.append("<").append(template).append(">");
             } else if (type.isMap()) {
                 out.append("<String, ").append(template).append(">");
