@@ -49,7 +49,7 @@ public class JasonLib
         <T> T readPrimitive(ObjectRead context, String field, Reader<PrimitiveRead, T> as) throws IOException;
         <T> Optional<T> readOptional(ObjectRead context, String field, Reader<PrimitiveRead, T> of) throws IOException;
         <T> List<T> readList(ObjectRead context, String field, Reader<PrimitiveRead, T> of) throws IOException;
-        <T> Map<String, T> readMap(ObjectRead context, String field, Reader<PrimitiveRead, T> of) throws IOException;
+        <T, U> Map<T, U> readMap(ObjectRead context, String field, Reader<PrimitiveRead, T> rkey, Reader<PrimitiveRead, U> rvalue) throws IOException;
 
         Writer<PrimitiveWrite, Boolean> booleanWriter() throws IOException;
         Writer<PrimitiveWrite, Integer> integerWriter() throws IOException;
@@ -62,6 +62,6 @@ public class JasonLib
         <T> ObjectWrite writePrimitive(ObjectWrite context, String field, Writer<PrimitiveWrite, T> as, T value) throws IOException;
         <T> ObjectWrite writeOptional(ObjectWrite context, String field, Writer<PrimitiveWrite, T> of, Optional<T> value) throws IOException;
         <T> ObjectWrite writeList(ObjectWrite context, String field, Writer<PrimitiveWrite, T> of, List<T> value) throws IOException;
-        <T> ObjectWrite writeMap(ObjectWrite context, String field, Writer<PrimitiveWrite, T> of, Map<String, T> value) throws IOException;
+        <T, U> ObjectWrite writeMap(ObjectWrite context, String field, Writer<PrimitiveWrite, T> wkey, Writer<PrimitiveWrite, U> wvalue, Map<T, U> value) throws IOException;
     }
 }

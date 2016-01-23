@@ -82,10 +82,14 @@ public class Json implements JasonLib.Serializer<JsonObject, JsonObject, JsonEle
     }
 
     @Override
-    public <T> Map<String, T> readMap(JsonObject context, String field, JasonLib.Serializer.Reader<JsonElement, T> of) throws IOException {
+    public <T, U> Map<T, U> readMap(JsonObject context, String field, JasonLib.Serializer.Reader<JsonElement, T> rkey, JasonLib.Serializer.Reader<JsonElement, U> rvalue) throws IOException {
         JsonObject o = context.getAsJsonObject(field);
-        Map<String, T> m = new HashMap<>();
-        for (Map.Entry<String, JsonElement> e : o.entrySet()) m.put(e.getKey(), of.read(e.getValue()));
+        Map<T, U> m = new HashMap<>();
+        try {
+            for (Map.Entry<String, JsonElement> e : o.entrySet()) m.put((T)e.getKey(), rvalue.read(e.getValue()));
+        } catch (ClassCastException e) {
+            throw new IOException("json maps must have string keys");
+        }
         return m;
     }
 
@@ -145,10 +149,14 @@ public class Json implements JasonLib.Serializer<JsonObject, JsonObject, JsonEle
     }
 
     @Override
-    public <T> JsonObject writeMap(JsonObject context, String field, JasonLib.Serializer.Writer<JsonElement, T> of, Map<String, T> value) throws IOException {
+    public <T, U> JsonObject writeMap(JsonObject context, String field, JasonLib.Serializer.Writer<JsonElement, T> wkey, JasonLib.Serializer.Writer<JsonElement, U> wvalue, Map<T, U> value) throws IOException {
         JsonObject o = new JsonObject();
-        for (Map.Entry<String, T> e : value.entrySet())
-            o.add(e.getKey(), of.write(null, e.getValue()));
+        try {
+            for (Map.Entry<T, U> e : value.entrySet())
+                o.add((String)e.getKey(), wvalue.write(null, e.getValue()));
+        } catch (ClassCastException e) {
+            throw new IOException("json maps must have string keys");
+        }
         context.add(field, o);
         return context;
     }

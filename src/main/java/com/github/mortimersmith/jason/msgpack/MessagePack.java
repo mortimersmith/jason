@@ -87,10 +87,10 @@ public class MessagePack implements JasonLib.Serializer<Unpacker, Packer, Unpack
     }
 
     @Override
-    public <T> Map<String, T> readMap(Unpacker context, String field, JasonLib.Serializer.Reader<Unpacker, T> of) throws IOException {
+    public <T, U> Map<T, U> readMap(Unpacker context, String field, JasonLib.Serializer.Reader<Unpacker, T> rkey, JasonLib.Serializer.Reader<Unpacker, U> rvalue) throws IOException {
         int len = context.readInt();
-        Map<String, T> m = new HashMap<>();
-        for (int i = 0; i < len; ++i) m.put(stringReader().read(context), of.read(context));
+        Map<T, U> m = new HashMap<>();
+        for (int i = 0; i < len; ++i) m.put(rkey.read(context), rvalue.read(context));
         return m;
     }
 
@@ -150,11 +150,11 @@ public class MessagePack implements JasonLib.Serializer<Unpacker, Packer, Unpack
     }
 
     @Override
-    public <T> Packer writeMap(Packer context, String field, JasonLib.Serializer.Writer<Packer, T> of, Map<String, T> value) throws IOException {
+    public <T, U> Packer writeMap(Packer context, String field, JasonLib.Serializer.Writer<Packer, T> wkey, JasonLib.Serializer.Writer<Packer, U> wvalue, Map<T, U> value) throws IOException {
         context.write(value.size());
-        for (Map.Entry<String, T> e : value.entrySet()) {
-            stringWriter().write(context, e.getKey());
-            of.write(context, e.getValue());
+        for (Map.Entry<T, U> e : value.entrySet()) {
+            wkey.write(context, e.getKey());
+            wvalue.write(context, e.getValue());
         }
         return context;
     }

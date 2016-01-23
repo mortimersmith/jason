@@ -84,7 +84,7 @@ public class Example
                     ( s.readPrimitive(child, "primitive", s.booleanReader())
                     , s.readOptional(child, "optional", s.longReader())
                     , s.readList(child, "list", s.integerReader())
-                    , s.readMap(child, "map", Bar.serializableReader(s))
+                    , s.readMap(child, "map", s.stringReader(), Bar.serializableReader(s))
                     );
             };
         }
@@ -97,7 +97,7 @@ public class Example
             s.writePrimitive(context, "primitive", s.booleanWriter(), _primitive);
             s.writeOptional(context, "optional", s.longWriter(), _optional);
             s.writeList(context, "list", s.integerWriter(), _list);
-            s.writeMap(context, "map", s.<Bar>serializableWriter(), _map);
+            s.writeMap(context, "map", s.stringWriter(), s.<Bar>serializableWriter(), _map);
             return context;
         }
     }
