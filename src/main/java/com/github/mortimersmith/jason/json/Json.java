@@ -82,6 +82,7 @@ public class Json implements JasonLib.Serializer<JsonObject, JsonObject, JsonEle
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <T, U> Map<T, U> readMap(JsonObject context, String field, JasonLib.Serializer.Reader<JsonElement, T> rkey, JasonLib.Serializer.Reader<JsonElement, U> rvalue) throws IOException {
         JsonObject o = context.getAsJsonObject(field);
         Map<T, U> m = new HashMap<>();
@@ -149,6 +150,7 @@ public class Json implements JasonLib.Serializer<JsonObject, JsonObject, JsonEle
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <T, U> JsonObject writeMap(JsonObject context, String field, JasonLib.Serializer.Writer<JsonElement, T> wkey, JasonLib.Serializer.Writer<JsonElement, U> wvalue, Map<T, U> value) throws IOException {
         JsonObject o = new JsonObject();
         try {

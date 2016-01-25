@@ -40,4 +40,5 @@ dependencies {
     compile "com.github.mortimersmith:utils:0.0.1"
     compile "com.google.code.gson:gson:2.3.1"
     compile "org.msgpack:msgpack:0.6.12"
+    compile "com.squareup:javapoet:1.5.1"
 }

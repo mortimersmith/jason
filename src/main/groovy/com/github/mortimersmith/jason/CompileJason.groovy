@@ -6,8 +6,8 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.incremental.IncrementalTaskInputs
 
-class CompileJason extends DefaultTask {
-
+class CompileJason extends DefaultTask
+{
     @InputDirectory
     def File input = project.file(project.extensions.jason.input)
 

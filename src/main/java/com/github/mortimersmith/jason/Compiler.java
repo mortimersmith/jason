@@ -1,35 +1,32 @@
 package com.github.mortimersmith.jason;
 
-import static com.github.mortimersmith.jason.Util.forEachE;
+import com.github.mortimersmith.utils.Utils.ThrowingConsumer;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.FieldSpec;
+import com.squareup.javapoet.JavaFile;
+import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.ParameterizedTypeName;
+import com.squareup.javapoet.TypeName;
+import com.squareup.javapoet.TypeSpec;
+import com.squareup.javapoet.TypeVariableName;
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+import javax.lang.model.element.Modifier;
 
 public class Compiler
 {
-    public static final Set<String> BUILTIN_TYPES = Sets.of
-        ( "Boolean"
-        , "Integer"
-        , "Long"
-        , "Float"
-        , "Double"
-        , "String"
-        , "Optional"
-        , "List"
-        , "Map"
-        );
-
     public static void main(String[] args) throws Error
     {
         if (args.length != 2) throw Error.because("invalid arguments");
@@ -42,7 +39,6 @@ public class Compiler
         for (File file : specs.toFile().listFiles()) {
             if (!file.isFile()) continue;
             if (!file.getName().endsWith(".json")) continue;
-            StringBuilder out = new StringBuilder();
             JsonObject json = Error.get(() -> parser.parse(new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8)).getAsJsonObject());
             compileJson(json, target);
         }
@@ -50,263 +46,367 @@ public class Compiler
 
     public static void compileJson(JsonObject spec, Path target) throws Error
     {
-        StringBuilder out = new StringBuilder();
-        Instances instances = new Instances();
-        instances.pkg = spec.get("package").getAsString();
-        instances.name = spec.get("name").getAsString();
-        forEachE(spec.get("types").getAsJsonObject(), (name, e) -> {
-            Instance instance = new Instance();
-            instance.name = name;
-            forEachE(e.getAsJsonObject(), (field, type) -> {
-                Member member = new Member();
-                member.name = field;
-                resolveType(type.getAsJsonObject(), member);
-                instance.members.add(member);
-            });
-            instances.map.put(name, instance);
-        });
-        validate(instances);
-        Emit.instances(instances, out);
-        output(instances, out.toString(), target);
+        Package pkg = new Package();
+        pkg.name = spec.get("package").getAsString();
+        for (Instances i : compileNamespaces(spec, pkg))
+            pkg.namespaces.put(i.name, i);
+        Emit.pkg(pkg, target);
     }
 
-    private static void output(Instances instances, String data, Path target) throws Error
+    private static Iterable<Instances> compileNamespaces(JsonObject spec, Package pkg) throws Error
     {
-        Path pkg = target.resolve(instances.pkg.replace(".", File.separator));
-        pkg.toFile().mkdirs();
-        Path file = pkg.resolve(instances.name + ".java");
-        Error.run(() -> Files.write(file, data.getBytes(StandardCharsets.UTF_8)));
+        List<Instances> iss = new LinkedList<>();
+        for (JsonElement nsElement : spec.get("namespaces").getAsJsonArray()) {
+            JsonObject nsObject = nsElement.getAsJsonObject();
+            Instances is = new Instances();
+            is.pkg = pkg;
+            is.name = nsObject.get("name").getAsString();
+            if (nsObject.has("types")) {
+                for (JsonElement typeElement : nsObject.get("types").getAsJsonArray()) {
+                    JsonObject typeObject = typeElement.getAsJsonObject();
+                    Instance i = new Instance();
+                    i.instances = is;
+                    i.name = typeObject.get("name").getAsString();
+                    if (typeObject.has("implements")) {
+                        for (JsonElement ifaceElement : typeObject.get("implements").getAsJsonArray())
+                            i.ifaces.add(ifaceElement.getAsString());
+                    }
+                    if (typeObject.has("fields")) {
+                        for (JsonElement fieldElement : typeObject.get("fields").getAsJsonArray()) {
+                            JsonObject fieldObject = fieldElement.getAsJsonObject();
+                            Member member = new Member();
+                            member.name = fieldObject.get("name").getAsString();
+                            resolveType(fieldObject, member);
+                            i.members.add(member);
+                        }
+                    }
+                    is.types.put(i.name, i);
+                }
+            }
+            if (nsObject.has("namespaces")) {
+                for (Instances child : compileNamespaces(nsObject, pkg)) {
+                    child.parent = is;
+                    is.namespaces.put(child.name, child);
+                }
+            }
+            iss.add(is);
+        }
+        return iss;
     }
 
     private static void resolveType(JsonObject json, Member m) throws Error
     {
         String type = json.get("type").getAsString();
         m.type = Symbol.of(type);
-        if ("optional".equals(type) || "list".equals(type) || "map".equals(type)) {
+        if ("optional".equals(type) || "list".equals(type)) {
             String of = json.get("of").getAsString();
-            m.template = Symbol.of(of);
+            m.templates = new Symbol[] { Symbol.of(of) };
+        } else if ("map".equals(type)) {
+            String key = json.get("key").getAsString();
+            String value = json.get("value").getAsString();
+            m.templates = new Symbol[] { Symbol.of(key), Symbol.of(value) };
+        } else {
+            m.templates = new Symbol[] {};
         }
     }
 
-    private static void validate(Instances instances) throws Error
+    private static <T, E extends Exception> void emitEach(T[] ts, String sep, StringBuilder out, ThrowingConsumer<T, E> c) throws E
     {
-        Set<String> types = new HashSet<>();
-        for (Instance i : instances.map.values())
-            types.add(i.name);
-        for (Instance i : instances.map.values()) {
-            for (Member m : i.members) {
-                if (!BUILTIN_TYPES.contains(m.type.name) && !types.contains(m.type.name))
-                    throw Error.because(String.format("unknown type: %s", m.type));
-                if (m.template != null && !BUILTIN_TYPES.contains(m.template.name) && !types.contains(m.template.name))
-                    throw Error.because(String.format("unknown type parameter: %s: %s", m.type, m.template));
-            }
+        boolean first = true;
+        for (T t : ts) {
+            if (first) first = false; else out.append(sep);
+            c.accept(t);
+        }
+    }
+
+    private static <T, E extends Exception> void emitEach(Iterable<T> ts, String sep, StringBuilder out, ThrowingConsumer<T, E> c) throws E
+    {
+        boolean first = true;
+        for (T t : ts) {
+            if (first) first = false; else out.append(sep);
+            c.accept(t);
         }
     }
 
     private interface Emit
     {
-        static void instances(Instances instances, StringBuilder out) throws Error
+        static void pkg(Package pkg, Path target) throws Error
         {
-            out.append("package ").append(instances.pkg).append(";\n");
-            out.append("import com.github.mortimersmith.jason.JasonLib.IBuilder;\n");
-            out.append("import com.github.mortimersmith.jason.JasonLib.Serializer;\n");
-            out.append("import com.github.mortimersmith.jason.JasonLib.Serializable;\n");
-            out.append("import java.io.IOException;\n");
-            out.append("import java.util.List;\n");
-            out.append("import java.util.Map;\n");
-            out.append("import java.util.Optional;\n");
-            out.append("public interface ").append(instances.name).append(" {\n");
-            for (Instance i : instances.map.values())
-                instance(i, out);
-            out.append("}\n");
-        }
-
-        static void instance(Instance instance, StringBuilder out) throws Error
-        {
-            out.append("public static class ").append(instance.name).append(" implements Serializable {\n");
-            fields(instance, true, out);
-            constructor(instance, out);
-            factoryMethod(instance, out);
-            getters(instance, out);
-            setters(instance, out);
-            serializableReader(instance, out);
-            serializableWriter(instance, out);
-            builder(instance, out);
-            toBuilder(instance, out);
-            out.append("}\n");
-        }
-
-        static void builder(Instance instance, StringBuilder out) throws Error
-        {
-            out.append("public static class Builder implements IBuilder<");
-            out.append(instance.name);
-            out.append("> {\n");
-            fields(instance, false, out);
-            getters(instance, out);
-            builderSetters(instance, out);
-            out.append("public ").append(instance.name).append(" build() { return ").append(instance.name).append(".of(");
-            boolean first = true;
-            for (Member m : instance.members) {
-                if (first) first = false; else out.append(", ");
-                out.append("_").append(m.name);
+            for (Instances is : pkg.namespaces.values()) {
+                TypeSpec type = instances(is);
+                JavaFile file = JavaFile.builder(is.pkg.name, type).build();
+                Error.run(() -> file.writeTo(target));
             }
-            out.append("); }\n");
-            out.append("}\n");
         }
 
-        static void toBuilder(Instance instance, StringBuilder out) throws Error
+        static TypeSpec instances(Instances is) throws Error
         {
-            out.append("public Builder builder() { return new Builder()");
+            Modifier[] mods = is.parent == null
+                ? new Modifier[] { Modifier.PUBLIC, Modifier.FINAL }
+                : new Modifier[] { Modifier.PUBLIC, Modifier.FINAL, Modifier.STATIC };
+            TypeSpec.Builder wrapper = TypeSpec.classBuilder(is.name)
+                .addModifiers(mods)
+                .addMethod(MethodSpec.constructorBuilder().addModifiers(Modifier.PRIVATE).build());
+            for (Instance i : is.types.values())
+                instance(i, wrapper);
+            for (Instances nested : is.namespaces.values())
+                wrapper.addType(instances(nested));
+            return wrapper.build();
+        }
+
+        static void instance(Instance instance, TypeSpec.Builder wrapper) throws Error
+        {
+            TypeSpec.Builder nested = TypeSpec.classBuilder(instance.name)
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .addSuperinterface(JasonLib.Serializable.class);
+            ifaces(instance, nested);
+            fields(instance, true, nested);
+            constructor(instance, nested);
+            factoryMethod(instance, nested);
+            getters(instance, nested);
+            setters(instance, nested);
+            builder(instance, nested);
+            toBuilder(instance, nested);
+            serializableReader(instance, nested);
+            serializableWriter(instance, nested);
+            wrapper.addType(nested.build());
+        }
+
+        static void ifaces(Instance instance, TypeSpec.Builder type) throws Error
+        {
+            for (String iface : instance.ifaces)
+                type.addSuperinterface(ClassName.get("", iface));
+        }
+
+        static void fields(Instance instance, boolean final_, TypeSpec.Builder type) throws Error
+        {
+            for (Member m : instance.members) {
+                Modifier[] mods = final_
+                    ? new Modifier[] { Modifier.PRIVATE, Modifier.FINAL }
+                    : new Modifier[] { Modifier.PRIVATE };
+                type.addField(FieldSpec.builder(m.type.type(), "_" + m.name, mods).build());
+            }
+        }
+
+        static void constructor(Instance instance, TypeSpec.Builder type) throws Error
+        {
+            MethodSpec.Builder ctor = MethodSpec.constructorBuilder()
+                .addModifiers(Modifier.PRIVATE);
             for (Member m : instance.members)
-                out.append(".").append(m.name).append("(_").append(m.name).append(")");
-            out.append("; }\n");
+                ctor.addParameter(m.type.type(), m.name);
+            for (Member m : instance.members)
+                ctor.addStatement("_$N = $N", m.name, m.name);
+            type.addMethod(ctor.build());
         }
 
-        static void builderSetters(Instance instance, StringBuilder out) throws Error
+        static void factoryMethod(Instance instance, TypeSpec.Builder type) throws Error
         {
-            for (Member m : instance.members) {
-                out.append("public Builder ");
-                out.append(m.name);
-                out.append("(");
-                m.emitType(out);
-                out.append(" ");
-                out.append(m.name);
-                out.append(") { _");
-                out.append(m.name);
-                out.append(" = ");
-                out.append(m.name);
-                out.append("; return this; }\n");
-            }
+            MethodSpec.Builder method = MethodSpec.methodBuilder("of")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(ClassName.get("", instance.name));
+            for (Member m : instance.members)
+                method.addParameter(m.type.type(), m.name);
+            StringBuilder stmt = new StringBuilder();
+            stmt.append("return new ").append(instance.name).append("(");
+            emitEach(instance.members, ", ", stmt, (m) -> stmt.append(m.name));
+            stmt.append(")");
+            method.addStatement(stmt.toString());
+            type.addMethod(method.build());
         }
 
-        static void fields(Instance instance, boolean final_, StringBuilder out) throws Error
+        static void getters(Instance instance, TypeSpec.Builder type) throws Error
         {
-            for (Member m : instance.members) {
-                out.append("private ").append(final_ ? "final " : " ");
-                m.emitType(out);
-                out.append(" _").append(m.name).append(";\n");
-            }
+            for (Member m : instance.members)
+                type.addMethod(
+                    MethodSpec.methodBuilder(m.name)
+                        .addModifiers(Modifier.PUBLIC)
+                        .returns(m.type.type())
+                        .addStatement("return _$N", m.name)
+                        .build());
         }
 
-        static void constructor(Instance instance, StringBuilder out) throws Error
-        {
-            out.append("private ").append(instance.name).append("(");
-            boolean first = true;
-            for (Member m : instance.members) {
-                if (first) first = false; else out.append(", ");
-                m.emitType(out);
-                out.append(" ").append(m.name);
-            }
-            out.append(") {\n");
-            for (Member m : instance.members) {
-                out.append("_").append(m.name).append(" = ").append(m.name).append(";\n");
-            }
-            out.append("}\n");
-        }
-
-        static void factoryMethod(Instance instance, StringBuilder out) throws Error
-        {
-            out.append("public static ").append(instance.name).append(" of(");
-            boolean first = true;
-            for (Member m : instance.members) {
-                if (first) first = false; else out.append(", ");
-                m.emitType(out);
-                out.append(" ").append(m.name);
-            }
-            out.append(") {\n");
-            out.append("return new ").append(instance.name).append("(");
-            first = true;
-            for (Member m : instance.members) {
-                if (first) first = false; else out.append(", ");
-                out.append(m.name);
-            }
-            out.append(");\n}\n");
-        }
-
-        static void getters(Instance instance, StringBuilder out) throws Error
+        static void setters(Instance instance, TypeSpec.Builder type) throws Error
         {
             for (Member m : instance.members) {
-                out.append("public ");
-                m.emitType(out);
-                out.append(" ");
-                out.append(m.name);
-                out.append("() { return _");
-                out.append(m.name);
-                out.append("; }\n");
+                StringBuilder stmt = new StringBuilder();
+                stmt.append("return ").append(instance.name).append(".of(");
+                emitEach(instance.members, ", ", stmt, (n) -> {
+                    if (m != n) stmt.append("_");
+                    stmt.append(n.name);
+                });
+                stmt.append(")");
+                type.addMethod(
+                    MethodSpec.methodBuilder(m.name)
+                        .addModifiers(Modifier.PUBLIC)
+                        .returns(ClassName.get("", instance.name))
+                        .addParameter(m.type.type(), m.name)
+                        .addStatement(stmt.toString())
+                        .build());
             }
         }
 
-        static void setters(Instance instance, StringBuilder out) throws Error
+        static void builder(Instance instance, TypeSpec.Builder type) throws Error
+        {
+            TypeSpec.Builder builder = TypeSpec.classBuilder("Builder")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .addSuperinterface(
+                    ParameterizedTypeName.get(
+                        ClassName.get("com.github.mortimersmith.jason.JasonLib", "IBuilder"),
+                        instance.fullName()));
+            fields(instance, false, builder);
+            getters(instance, builder);
+            builderSetters(instance, builder);
+
+            StringBuilder stmt = new StringBuilder();
+            stmt.append("return ").append(instance.name).append(".of(");
+            emitEach(instance.members, ", ", stmt, (m) -> stmt.append("_" + m.name));
+            stmt.append(")");
+            builder.addMethod(
+                MethodSpec.methodBuilder("build")
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(instance.fullName())
+                    .addStatement(stmt.toString())
+                    .build());
+
+            type.addType(builder.build());
+        }
+
+        static void toBuilder(Instance instance, TypeSpec.Builder type) throws Error
+        {
+            StringBuilder stmt = new StringBuilder();
+            stmt.append("return new Builder()");
+            emitEach(instance.members, "", stmt, (m) -> stmt.append(".").append(m.name).append("(_").append(m.name).append(")"));
+            type.addMethod(
+                MethodSpec.methodBuilder("builder")
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(ClassName.get("", "Builder"))
+                    .addStatement(stmt.toString())
+                    .build());
+        }
+
+        static void builderSetters(Instance instance, TypeSpec.Builder type) throws Error
         {
             for (Member m : instance.members) {
-                out.append("public ");
-                out.append(instance.name);
-                out.append(" ");
-                out.append(m.name);
-                out.append("(");
-                m.emitType(out);
-                out.append(" ");
-                out.append(m.name);
-                out.append(") { return ");
-                out.append(instance.name);
-                out.append(".of(");
-                boolean first = true;
-                for (Member n : instance.members) {
-                    if (first) first = false; else out.append(", ");
-                    if (m != n) out.append("_");
-                    out.append(n.name);
+                type.addMethod(
+                    MethodSpec.methodBuilder(m.name)
+                        .addModifiers(Modifier.PUBLIC)
+                        .returns(ClassName.get("", "Builder"))
+                        .addParameter(m.type.type(), m.name)
+                        .addStatement("_$N = $N", m.name, m.name)
+                        .addStatement("return this")
+                        .build());
+            }
+        }
+
+        static void serializableReader(Instance instance, TypeSpec.Builder type) throws Error
+        {
+            type.addMethod(
+                MethodSpec.methodBuilder("from")
+                    .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                    .addTypeVariable(TypeVariableName.get("ObjectRead"))
+                    .addTypeVariable(TypeVariableName.get("ObjectWrite"))
+                    .addTypeVariable(TypeVariableName.get("PrimitiveRead"))
+                    .addTypeVariable(TypeVariableName.get("PrimitiveWrite"))
+                    .returns(instance.fullName())
+                    .addParameter(
+                        ParameterizedTypeName.get(
+                            ClassName.get("com.github.mortimersmith.jason.JasonLib", "Serializer"),
+                            TypeVariableName.get("ObjectRead"),
+                            TypeVariableName.get("ObjectWrite"),
+                            TypeVariableName.get("PrimitiveRead"),
+                            TypeVariableName.get("PrimitiveWrite")),
+                        "s")
+                    .addParameter(ClassName.get("", "PrimitiveRead"), "o")
+                    .addException(IOException.class)
+                    .addStatement("return serializableReader(s).read(o)")
+                    .build());
+
+            StringBuilder stmt = new StringBuilder();
+            stmt.append("return (context) -> { ");
+            stmt.append("ObjectRead child = s.childContext(context); ");
+            stmt.append("return ");
+            stmt.append(instance.name);
+            stmt.append(".of(");
+            emitEach(instance.members, ", ", stmt, (m) -> {
+                stmt.append("s.read");
+                typeClassification(m, stmt);
+                stmt.append("(child, \"");
+                stmt.append(m.name);
+                stmt.append("\", ");
+                if (!m.type.templatized()) {
+                    serializableReaderPrimitive(m.type, stmt);
+                } else {
+                    emitEach(m.templates, ", ", stmt, (t) -> serializableReaderPrimitive(t, stmt));
                 }
-                out.append("); }\n");
-            }
+                stmt.append(")");
+            });
+            stmt.append("); }");
+
+            type.addMethod(
+                MethodSpec.methodBuilder("serializableReader")
+                    .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                    .addTypeVariable(TypeVariableName.get("ObjectRead"))
+                    .addTypeVariable(TypeVariableName.get("ObjectWrite"))
+                    .addTypeVariable(TypeVariableName.get("PrimitiveRead"))
+                    .addTypeVariable(TypeVariableName.get("PrimitiveWrite"))
+                    .returns(
+                        ParameterizedTypeName.get(
+                            ClassName.get("com.github.mortimersmith.jason.JasonLib.Serializer", "Reader"),
+                            TypeVariableName.get("PrimitiveRead"),
+                            TypeVariableName.get(instance.name)))
+                    .addParameter(
+                        ParameterizedTypeName.get(
+                            ClassName.get("com.github.mortimersmith.jason.JasonLib", "Serializer"),
+                            TypeVariableName.get("ObjectRead"),
+                            TypeVariableName.get("ObjectWrite"),
+                            TypeVariableName.get("PrimitiveRead"),
+                            TypeVariableName.get("PrimitiveWrite")),
+                        "s")
+                    .addException(IOException.class)
+                    .addStatement(stmt.toString())
+                    .build());
         }
 
-        static void serializableReader(Instance instance, StringBuilder out) throws Error
+        static void serializableWriter(Instance instance, TypeSpec.Builder type) throws Error
         {
+            MethodSpec.Builder method = MethodSpec.methodBuilder("serialize")
+                .addModifiers(Modifier.PUBLIC)
+                .addTypeVariable(TypeVariableName.get("ObjectRead"))
+                .addTypeVariable(TypeVariableName.get("ObjectWrite"))
+                .addTypeVariable(TypeVariableName.get("PrimitiveRead"))
+                .addTypeVariable(TypeVariableName.get("PrimitiveWrite"))
+                .returns(TypeVariableName.get("ObjectWrite"))
+                .addParameter(
+                    ParameterizedTypeName.get(
+                        ClassName.get("com.github.mortimersmith.jason.JasonLib", "Serializer"),
+                        TypeVariableName.get("ObjectRead"),
+                        TypeVariableName.get("ObjectWrite"),
+                        TypeVariableName.get("PrimitiveRead"),
+                        TypeVariableName.get("PrimitiveWrite")),
+                    "s")
+                .addParameter(TypeVariableName.get("ObjectWrite"), "context")
+                .addException(IOException.class);
 
-            out.append("public static <ObjectRead, ObjectWrite, PrimitiveRead, PrimitiveWrite> ");
-            out.append(instance.name);
-            out.append(" from(Serializer<ObjectRead, ObjectWrite, PrimitiveRead, PrimitiveWrite> s, PrimitiveRead o) throws IOException {\n");
-            out.append("return serializableReader(s).read(o);\n");
-            out.append("}\n");
-
-            out.append("public static <ObjectRead, ObjectWrite, PrimitiveRead, PrimitiveWrite> Serializer.Reader<PrimitiveRead, ");
-            out.append(instance.name);
-            out.append("> serializableReader(Serializer<ObjectRead, ObjectWrite, PrimitiveRead, PrimitiveWrite> s) throws IOException {\n");
-            out.append("return (context) -> {\n");
-            out.append("ObjectRead child = s.childContext(context);\n");
-            out.append("return ");
-            out.append(instance.name);
-            out.append(".of\n(");
-            boolean first = true;
             for (Member m : instance.members) {
-                if (first) { first = false; out.append(" "); } else out.append(", ");
-                out.append("s.read");
-                typeClassification(m, out);
-                out.append("(child, \"");
-                out.append(m.name);
-                out.append("\", ");
-                serializableReaderPrimitive(m.type.templatized() ? m.template : m.type, out);
-                out.append(")\n");
+                StringBuilder stmt = new StringBuilder();
+                stmt.append("s.write");
+                typeClassification(m, stmt);
+                stmt.append("(context, \"");
+                stmt.append(m.name);
+                stmt.append("\", ");
+                if (!m.type.templatized()) {
+                    serializableWriterPrimitive(m.type, stmt);
+                } else {
+                    emitEach(m.templates, ", ", stmt, (t) -> serializableWriterPrimitive(t, stmt));
+                }
+                stmt.append(", _");
+                stmt.append(m.name);
+                stmt.append(")");
+                method.addStatement(stmt.toString());
             }
-            out.append(");\n};\n}\n");
-        }
+            method.addStatement("return context");
 
-        static void serializableWriter(Instance instance, StringBuilder out) throws Error
-        {
-            out.append("public <ObjectRead, ObjectWrite, PrimitiveRead, PrimitiveWrite> ObjectWrite serialize(Serializer<ObjectRead, ObjectWrite, PrimitiveRead, PrimitiveWrite> s, ObjectWrite context) throws IOException {\n");
-            for (Member m : instance.members) {
-                out.append("s.write");
-                typeClassification(m, out);
-                out.append("(context, \"");
-                out.append(m.name);
-                out.append("\", ");
-                serializableWriterPrimitive(m.type.templatized() ? m.template : m.type, out);
-                out.append(", _");
-                out.append(m.name);
-                out.append(");\n");
-            }
-            out.append("return context;\n");
-            out.append("}\n");
+            type.addMethod(method.build());
         }
 
         static void typeClassification(Member m, StringBuilder out) throws Error
@@ -325,7 +425,7 @@ public class Compiler
             else if (s.isFloat()) out.append("s.floatReader()");
             else if (s.isDouble()) out.append("s.doubleReader()");
             else if (s.isString()) out.append("s.stringReader()");
-            else out.append(s.name).append(".serializableReader(s)");
+            else out.append(s.name()).append(".serializableReader(s)");
         }
 
         static void serializableWriterPrimitive(Symbol s, StringBuilder out) throws Error
@@ -360,91 +460,144 @@ public class Compiler
 
     public static class Symbol
     {
-        public String name;
+        private String _type;
 
         private static Symbol of(String type) throws Error {
-            Symbol s = new Symbol();
-            if ("boolean".equals(type)) {
-                s.name = "Boolean";
-            } else if ("integer".equals(type)) {
-                s.name = "Integer";
-            } else if ("long".equals(type)) {
-                s.name = "Long";
-            } else if ("float".equals(type)) {
-                s.name = "Float";
-            } else if ("double".equals(type)) {
-                s.name = "Double";
-            } else if ("string".equals(type)) {
-                s.name = "String";
-            } else if ("optional".equals(type)) {
-                s.name = "Optional";
-            } else if ("list".equals(type)) {
-                s.name = "List";
-            } else if ("map".equals(type)) {
-                s.name = "Map";
-            } else {
-                s.name = type;
-            }
-            return s;
+            return new Symbol(type);
+        }
+
+        private Symbol(String type) {
+            _type = type;
         }
 
         // FIXME: properly model types
-        public boolean isBoolean() { return "Boolean".equals(name); }
-        public boolean isInteger() { return "Integer".equals(name); }
-        public boolean isLong() { return "Long".equals(name); }
-        public boolean isFloat() { return "Float".equals(name); }
-        public boolean isDouble() { return "Double".equals(name); }
-        public boolean isString() { return "String".equals(name); }
-        public boolean isOptional() { return "Optional".equals(name); }
-        public boolean isList() { return "List".equals(name); }
-        public boolean isMap() { return "Map".equals(name); }
-        public boolean templatized() { return "Optional".equals(name) || "List".equals(name) || "Map".equals(name); }
+        public boolean isBoolean() { return "boolean".equals(_type); }
+        public boolean isInteger() { return "int".equals(_type); }
+        public boolean isLong() { return "long".equals(_type); }
+        public boolean isFloat() { return "float".equals(_type); }
+        public boolean isDouble() { return "double".equals(_type); }
+        public boolean isString() { return "string".equals(_type); }
+        public boolean isOptional() { return "optional".equals(_type); }
+        public boolean isList() { return "list".equals(_type); }
+        public boolean isMap() { return "map".equals(_type); }
+        public boolean templatized() { return "optional".equals(_type) || "list".equals(_type) || "map".equals(_type); }
 
-        public String toString() { return name; }
+        public String toString() { return name(); }
 
         public boolean equals(Object o) {
             if (o == null) return false;
             if (!(o instanceof Symbol)) return false;
-            return Objects.equals(name, ((Symbol)o).name);
+            return Objects.equals(_type, ((Symbol)o)._type);
         }
 
-        public int hashCode() { return Objects.hash(name); }
+        public int hashCode() { return Objects.hash(_type); }
+
+        public String name() {
+            if ("boolean".equals(_type)) {
+                return "boolean";
+            } else if ("int".equals(_type)) {
+                return "int";
+            } else if ("long".equals(_type)) {
+                return "long";
+            } else if ("float".equals(_type)) {
+                return "float";
+            } else if ("double".equals(_type)) {
+                return "double";
+            } else if ("string".equals(_type)) {
+                return "String";
+            } else if ("optional".equals(_type)) {
+                return "java.util.Optional";
+            } else if ("list".equals(_type)) {
+                return "java.util.List";
+            } else if ("map".equals(_type)) {
+                return "java.util.Map";
+            } else {
+                return _type;
+            }
+        }
+
+        public TypeName type() {
+            if ("boolean".equals(_type)) {
+                return TypeName.BOOLEAN;
+            } else if ("int".equals(_type)) {
+                return TypeName.INT;
+            } else if ("long".equals(_type)) {
+                return TypeName.LONG;
+            } else if ("float".equals(_type)) {
+                return TypeName.FLOAT;
+            } else if ("double".equals(_type)) {
+                return TypeName.DOUBLE;
+            } else if ("string".equals(_type)) {
+                return ClassName.get("java.lang", "String");
+            } else if ("optional".equals(_type)) {
+                return ClassName.get("java.util", "Optional");
+            } else if ("list".equals(_type)) {
+                return ClassName.get("java.util", "List");
+            } else if ("map".equals(_type)) {
+                return ClassName.get("java.util", "Map");
+            } else {
+                return ClassName.get("", _type);
+            }
+        }
+    }
+
+    public static class Package
+    {
+        public String name;
+        public final Map<String, Instances> namespaces = new HashMap<>();
     }
 
     public static class Instances
     {
-        public String pkg;
+        public Package pkg;
+        public Instances parent;
         public String name;
-        public final Map<String, Instance> map = new HashMap<>();
+        public final Map<String, Instances> namespaces = new HashMap<>();
+        public final Map<String, Instance> types = new HashMap<>();
     }
 
     public static class Instance
     {
+        public Instances instances;
         public String name;
+        public final List<String> ifaces = new LinkedList<>();
         public final List<Member> members = new LinkedList<>();
+
+        public ClassName fullName() {
+            return ClassName.get(instances.pkg.name, generateName());
+        }
+
+        private String generateName() {
+            StringBuilder out = new StringBuilder();
+            generateInstanceChain(instances, out);
+            out.append(".").append(name);
+            return out.toString();
+        }
+
+        private StringBuilder generateInstanceChain(Instances i, StringBuilder out) {
+            if  (i.parent != null) {
+                generateInstanceChain(i.parent, out);
+                out.append(".");
+            }
+            out.append(i.name);
+            return out;
+        }
     }
 
     public static class Member
     {
         public String name;
         public Symbol type;
-        public Symbol template;
+        public Symbol[] templates;
 
         public void emitType(StringBuilder out) throws Error
         {
             out.append(type);
-            if (type.isOptional()) {
-                out.append("<").append(template).append(">");
-            } else if (type.isList()) {
-                out.append("<").append(template).append(">");
-            } else if (type.isMap()) {
-                out.append("<String, ").append(template).append(">");
+            if (templates != null && templates.length > 0) {
+                out.append("<");
+                emitEach(templates, ", ", out, (t) -> out.append(t));
+                out.append(">");
             }
-        }
-
-        public Symbol leafType()
-        {
-            return type.templatized() ? template : type;
         }
     }
 }
